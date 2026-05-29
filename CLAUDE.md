@@ -1,12 +1,12 @@
-# CLAUDE.md — GeoRutas SALUD (BACKEND + PIPELINE)
+# CLAUDE.md — GeoRutas SALUD
 
 > Instrucciones para Claude Code. Léelas completas antes de actuar.
 
 ## ⛔ ALCANCE — LÍMITE ESTRICTO
 
-Trabaja **ÚNICAMENTE** en `pipeline/` y `backend/`.
+Trabaja en **`frontend/`**, **`backend/`** y **`pipeline/`**. Los tres directorios son editables.
 
-**NO toques la carpeta `frontend/`** bajo ninguna circunstancia (ni leas para "ayudar", ni edites, ni instales dependencias, ni la despliegues). El frontend lo maneja otra persona. Si una tarea parece requerir tocar el frontend, **detente y avísalo** en vez de hacerlo.
+**NO toques ningún archivo fuera de estos tres directorios.** Si una tarea parece requerir cambios en otro lugar, **detente y avísalo**.
 
 ## Contexto del proyecto
 
@@ -20,124 +20,78 @@ El producto es un tablero de **priorización de inversión vial** para reducir m
 
 ## Fuentes de datos (DECISIÓN TOMADA — respétala)
 
-Tras revisar las capas viales de GEO Perú, se confirmó que están partidas por nivel
-(Nacional/Departamental/Vecinal) y por superficie, y NO están nodadas topológicamente,
-así que **no sirven como red para enrutar**. Decisión:
-
-- **Red para enrutar (el grafo) → OpenStreetMap (OSM) vía `osmnx`.** Trae una red conectada
-  y lista para grafo, con atributos `highway`, `surface`, `maxspeed`. Es abierta y reproducible.
+- **Red para enrutar → OpenStreetMap (OSM) vía `osmnx`.** Región piloto: Huancavelica.
 - **Centros poblados y establecimientos de salud → GEO Perú** (INEI / MINSA-RENIPRESS).
-  Estas son el **dataset obligatorio del concurso** y el valor real del análisis.
-- **Capas viales de GEO Perú → solo como evidencia oficial / corroboración** en el pitch,
-  o para etiquetar superficie por cruce espacial. NO como grafo.
-- **NO usar Google Maps API**: es de pago y sus términos PROHÍBEN almacenar/precalcular rutas,
-  lo que choca con nuestra arquitectura de precálculo offline; además no es dato abierto.
+- **NO usar Google Maps API**: es de pago y sus términos prohíben almacenar/precalcular rutas.
 
-**Trabajar sobre un DEPARTAMENTO PILOTO**, no todo el Perú (OSM nacional es inviable en el plazo).
-Elegir una región rural y dispersa con dolor de acceso fuerte. Dejar "escalable a todo el país"
-como cierre de valor público. La región piloto se fija en `config.py` (variable `REGION_PILOTO`,
-por defecto `"Huancavelica, Peru"`).
-
-**Cómo obtener la red OSM (IMPORTANTE):** descargar SIEMPRE con `osmnx` por nombre, NO usar
-exportaciones manuales del sitio web de OSM (tienen límite de tamaño y fallan con un departamento).
-
-```python
-import osmnx as ox
-G = ox.graph_from_place(config.REGION_PILOTO, network_type="drive")
-```
-
-Cachear el grafo descargado en `pipeline/data/processed/grafo_<region>.graphml` (con
-`ox.save_graphml` / `ox.load_graphml`) y reusarlo si ya existe, para no re-descargar en cada corrida.
-Si `graph_from_place` fallara por geocodificación, usar `graph_from_bbox` con el bbox de Huancavelica
-(N −11.85, S −14.10, O −75.80, E −74.35) como respaldo.
-
-## Arquitectura y flujo de datos (NO romper esto)
+## Arquitectura y flujo de datos
 
 ```
-OSM (osmnx) ──────────────►  pipeline/ (GeoPandas + NetworkX, OFFLINE)  ◄──── GEO Perú
-  (red para enrutar)                 │ escribe resultados ligeros          (CCPP + salud)
-                                     ▼
-                             backend/data/  (*.geojson + app.db SQLite)
-                                     │
-                             backend/ FastAPI  ── solo SIRVE los datos ──►  (frontend, fuera de alcance)
+OSM (osmnx) ──────────────►  pipeline/ (offline, CONGELADO)  ◄──── GEO Perú
+                                       │ escribe resultados
+                                       ▼
+                               backend/data/  (*.geojson + app.db)
+                                       │
+                               backend/ FastAPI (CONGELADO)
+                               https://georutas-salud.onrender.com
+                                       │
+                               frontend/ React + Vite + Leaflet  ← TRABAJO ACTUAL
 ```
 
-**Regla de oro:** el backend NO calcula isócronas ni scores. Todo el cómputo pesado vive en `pipeline/` y se ejecuta offline. El backend solo lee `backend/data/` y lo expone por la API. Esto mantiene la API rápida y dentro del plan gratuito de Render.
+**Regla de oro:** el backend NO calcula nada. Solo sirve los datos precalculados por el pipeline. El frontend solo visualiza lo que el backend expone.
 
-## Estado actual (punto de partida)
+## Estado actual
 
-Ya existe el esqueleto. Lo que está hecho:
+Las Fases A–D están completas y desplegadas:
 
-- `backend/`: FastAPI funcional con CORS, `/api/health`, routers `accesibilidad` y `tramos`, y `services/data_loader.py` que lee GeoJSON + SQLite. **Sirve datos pero aún no hay datos reales generados.**
-- `pipeline/src/`: módulos con la lógica esbozada y TODOs:
-  - `config.py` — rutas de shapefiles, nombres de columnas, umbrales y supuestos (umbral 120 min, velocidades por superficie, categorías MINSA resolutivas, pesos de vulnerabilidad). **Centraliza aquí todo parámetro configurable.**
-  - `build_graph.py` — **debe reescribirse para construir el grafo desde OSM con `osmnx`** (no desde el shapefile vial). Descargar la red del departamento piloto (`ox.graph_from_place` o por bbox), quedarse con la red de conducción, y asignar a cada arista el TIEMPO en minutos a partir de longitud + velocidad (de `maxspeed`/`highway`/`surface`, con fallback a `config.VELOCIDAD_KMH`). La función actual que lee `config.SHP_RED_VIAL` queda obsoleta.
-  - `compute_isochrones.py` — Dijkstra multi-origen desde establecimientos resolutivos. **Falta cargar centros poblados y salud reales.**
-  - `seasonal.py` — recalcula penalizando aristas vulnerables (escenario lluvias).
-  - `compute_scores.py` — score de priorización por tramo (MVP: score compuesto, NO optimización combinatoria).
-  - `export.py` — vuelca GeoJSON + SQLite a `backend/data/`.
-  - `run_pipeline.py` — orquestador (imports comentados, hay que encadenar los pasos).
-- Datos crudos esperados en `pipeline/data/raw/{centros_poblados,red_vial,salud,riesgo_inundacion}/` (shapefiles, NO versionados).
+- **`pipeline/`**: genera isócronas, ranking de tramos y escenario lluvias para Huancavelica (471 CCPP, 5 hospitales resolutivos). Ejecutado offline; resultados en `backend/data/`. **Congelado.**
+- **`backend/`**: FastAPI desplegado en Render (`https://georutas-salud.onrender.com`). Expone 4 endpoints con datos reales:
+  - `GET /api/accesibilidad/centros-poblados?escenario=seco|lluvias` — GeoJSON de puntos
+  - `GET /api/accesibilidad/metricas?escenario=seco|lluvias` — población desatendida, tiempo medio, aislados
+  - `GET /api/tramos/ranking?limite=N` — top corredores por score
+  - `GET /api/tramos/geometrias` — GeoJSON de líneas de corredores
+  - **Congelado.**
+- **`frontend/`**: React + Vite + Leaflet. Esqueleto funcional con los 4 componentes y `api.js` ya conectado a `VITE_API_URL`. **Pendiente: completar el mapa, la UI y el manejo del cold-start.**
 
-## Trabajo a completar (en orden)
+## Trabajo a completar (Fase E — Frontend)
 
-### Fase A — Datos reales
-1. Fijar `REGION_PILOTO` en `config.py`. Reescribir `build_graph.py` para bajar la red de OSM
-   de esa región con `osmnx`, asignar TIEMPO por arista (longitud / velocidad) y devolver el grafo.
-   Cachear el grafo descargado en `pipeline/data/processed/` para no re-descargar en cada corrida.
-2. Verificar las capas GEO Perú de puntos: cargar centros poblados y salud con GeoPandas,
-   imprimir `gdf.columns` y `gdf.crs`, y **actualizar en `config.py`** los `SHP_*` y `COL_*`.
-   No adivines nombres: confírmalos contra los datos. (Las variables `SHP_RED_VIAL`/`COL_VIA_*`
-   ya no aplican, puedes eliminarlas.)
-3. En `compute_isochrones.py`: cargar centros poblados (orígenes) y salud (destinos), reproyectar,
-   **filtrar salud por `config.CATEGORIAS_RESOLUTIVAS`** usando `config.COL_SALUD_CATEGORIA`,
-   recortar puntos a la región piloto, y enganchar cada punto al nodo OSM más cercano
-   (usar `ox.distance.nearest_nodes`).
+1. **`.env.local`**: `VITE_API_URL=https://georutas-salud.onrender.com` para apuntar al backend real.
 
-### Fase B — Análisis (los 3 factores)
-4. Calcular tiempo de acceso de cada CCPP al establecimiento resolutivo más cercano (factor 1) y marcar brecha (> umbral).
-5. Generar escenario seco y lluvias con `seasonal.py` (factor 3). Para marcar aristas `vulnerable=True`, cruzar la red vial con `riesgo_inundacion` (intersección espacial); si esa capa no está, dejar el flag configurable y documentarlo.
-6. Calcular el ranking de tramos con `compute_scores.py` (factor 2). Definir qué es un "tramo candidato" (p. ej. aristas no pavimentadas en zonas con brecha). Mantener el MVP de score compuesto.
+2. **`App.jsx`**: cargar `geometriasTramos()` una sola vez (no depende del escenario). Agregar estado de carga para el cold-start de Render (~50 s): overlay "Despertando el servidor…" mientras la primera petición está en vuelo.
 
-### Fase C — Exportar y servir
-7. En `export.py`/`run_pipeline.py`: producir y escribir en `backend/data/`:
-   - `acceso_seco.geojson` y `acceso_lluvias.geojson` (CCPP con `nombre`, `minutos`, `en_brecha`).
-   - `tramos_candidatos.geojson` (geometrías de tramos).
-   - `app.db` con tablas `metricas` (por escenario) y `tramos_ranking`.
-   Respeta los nombres de archivo/tablas/columnas que el backend ya espera (ver `backend/app/services/data_loader.py` y los routers).
-8. Verificar la API: levantar `uvicorn app.main:app --reload` y comprobar que `/api/accesibilidad/centros-poblados`, `/api/accesibilidad/metricas`, `/api/tramos/ranking` y `/api/tramos/geometrias` devuelven los datos reales (no los `_warning` de "falta archivo").
+3. **`MapView.jsx`**: centrar en Huancavelica (`[-12.85, -74.90]`, zoom 8). Pintar CCPP (rojo = en brecha, verde = con acceso). Agregar capa de tramos (líneas azul; top 3 en rojo/gruesas). Popups con nombre y minutos.
 
-### Fase D — Robustez y despliegue (Render)
-9. Manejo de errores en endpoints (datos faltantes → respuesta clara, no 500).
-10. Confirmar que `requirements.txt` del backend NO incluye geopandas/osmnx (el backend no los necesita; son solo del pipeline). Mantener el backend liviano.
-11. Verificar `backend/render.yaml` (rootDir backend, start con `$PORT`) y que `backend/data/` (los GeoJSON + app.db ya generados) quede versionado para que Render lo sirva sin correr el pipeline.
-12. Probar el arranque en frío como lo haría Render: `uvicorn app.main:app --host 0.0.0.0 --port 8000` desde `backend/`.
+4. **`TramoRanking.jsx`**: mostrar `longitud_km` y `score` (minutos ponderados ahorrados) además de nombre.
+
+5. **`MetricsBar.jsx`**: formato con separador de miles en población. Texto de etiquetas más descriptivo.
+
+6. **`styles.css`**: agregar `.loading-overlay` y `.spinner` para el cold-start.
+
+7. Correr `npm install` y `npm run dev`. Verificar que el mapa carga datos reales desde `https://georutas-salud.onrender.com`.
 
 ## Convenciones
 
-- Python 3.11+. Sigue el estilo existente (funciones pequeñas, type hints, español en comentarios y nombres de dominio).
-- **Todo parámetro/umbral va en `config.py`**, nunca hardcodeado en la lógica. Son los supuestos que defenderemos ante el jurado.
-- No inventes datos geográficos ni cifras: todo sale de las capas reales. Si una capa falta, deja el paso parametrizado y documsenta el supuesto.
-- Dos entornos virtuales independientes: uno en `pipeline/`, otro en `backend/`. No mezcles sus dependencias.
+- JavaScript/React (no TypeScript). Componentes funcionales, hooks, español en textos de UI.
+- **`VITE_API_URL` es el único parámetro de configuración.** No hardcodees URLs del backend.
+- Paleta: azul institucional `#0b5394`, rojo brecha `#b03a3a`, verde acceso `#1a8a5a`. Sobria.
 - Antes de un cambio grande, explica brevemente el plan.
+- **No toques `backend/` ni `pipeline/`** bajo ninguna circunstancia.
 
 ## Comandos útiles
 
 ```bash
-# Pipeline (genera datos) — desde pipeline/
-python -m venv .venv && source .venv/bin/activate   # Win: .venv\Scripts\activate
-pip install -r requirements.txt
-python src/run_pipeline.py
-
-# Backend (sirve datos) — desde backend/
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload     # http://localhost:8000/docs
+# Frontend — desde frontend/
+npm install
+npm run dev        # http://localhost:5173 (apunta a VITE_API_URL del .env.local)
+npm run build      # build de producción para Netlify
 ```
 
-## Definición de "terminado" (backend)
+## Definición de "terminado" (frontend)
 
-- `python src/run_pipeline.py` corre de principio a fin con las capas reales y escribe todos los archivos en `backend/data/`.
-- Los 4 endpoints devuelven datos reales y coherentes en los dos escenarios.
-- El backend arranca limpio con el comando de Render y `backend/data/` está versionado.
-- `frontend/` quedó intacto.
+- El mapa centra en Huancavelica y pinta los 471 CCPP con colores correctos en ambos escenarios.
+- Las líneas de corredores se ven sobre el mapa; top 3 visualmente diferenciados.
+- El conmutador seco/lluvias recarga puntos y métricas sin recargar la página.
+- `MetricsBar` muestra datos reales con formato correcto.
+- `TramoRanking` muestra top corredores con nombre, km y score.
+- El cold-start de Render (~50 s) muestra un mensaje claro, no una pantalla en blanco.
+- `backend/` y `pipeline/` quedaron intactos.

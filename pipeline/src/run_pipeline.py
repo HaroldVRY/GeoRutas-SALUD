@@ -12,7 +12,7 @@ from .cargar_puntos import cargar_ccpp, cargar_salud, enganchar_al_grafo
 from .compute_isochrones import tiempo_a_salud, _vulnerabilidad
 from .seasonal import penalizar_aristas
 from .compute_scores import calcular_ranking
-from .export import export_acceso, export_tramos, export_sqlite
+from .export import export_acceso, export_tramos, export_sqlite, export_hospitales
 
 logger = logging.getLogger(__name__)
 
@@ -84,13 +84,14 @@ def main():
     export_acceso(df_lluvias, "lluvias")
     export_tramos(G, ranking)
     export_sqlite(df_seco, df_sin_ruta_seco, df_lluvias, df_sin_ruta_lluvias, ranking)
+    export_hospitales(salud_eng)
 
     # ------------------------------------------------------------------
     # [6/6] Verificacion
     # ------------------------------------------------------------------
     print("[6/6] Verificando archivos en backend/data/...")
     esperados = ["acceso_seco.geojson", "acceso_lluvias.geojson",
-                 "tramos_candidatos.geojson", "app.db"]
+                 "tramos_candidatos.geojson", "app.db", "hospitales.geojson"]
     for fname in esperados:
         p = config.BACKEND_DATA_DIR / fname
         status = f"{p.stat().st_size:,} bytes" if p.exists() else "FALTA"

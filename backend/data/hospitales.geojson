@@ -1,0 +1,12 @@
+{
+"type": "FeatureCollection",
+"name": "hospitales",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:OGC:1.3:CRS84" } },
+"features": [
+{ "type": "Feature", "properties": { "nombre": "HOSPITAL PROVINCIAL DE ACOBAMBA", "categoria": "II-1" }, "geometry": { "type": "Point", "coordinates": [ -74.57147377, -12.84469274 ] } },
+{ "type": "Feature", "properties": { "nombre": "HOSPITAL II HUANCAVELICA", "categoria": "II-1" }, "geometry": { "type": "Point", "coordinates": [ -74.9890025, -12.7832573 ] } },
+{ "type": "Feature", "properties": { "nombre": "HOSPITAL DE PAMPAS", "categoria": "II-1" }, "geometry": { "type": "Point", "coordinates": [ -74.86646706, -12.40228755 ] } },
+{ "type": "Feature", "properties": { "nombre": "HOSPITAL DE LIRCAY", "categoria": "II-1" }, "geometry": { "type": "Point", "coordinates": [ -74.72378833, -12.99680833 ] } },
+{ "type": "Feature", "properties": { "nombre": "HOSPITAL DEPARTAMENTAL DE HUANCAVELICA", "categoria": "II-2" }, "geometry": { "type": "Point", "coordinates": [ -74.98103709, -12.7872348 ] } }
+]
+}

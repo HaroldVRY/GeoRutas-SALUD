@@ -11,4 +11,5 @@ export const api = {
   metricas: (escenario) => get(`/api/accesibilidad/metricas?escenario=${escenario}`),
   rankingTramos: (limite = 20) => get(`/api/tramos/ranking?limite=${limite}`),
   geometriasTramos: () => get(`/api/tramos/geometrias`),
+  hospitales: () => get(`/api/salud/hospitales`),
 };

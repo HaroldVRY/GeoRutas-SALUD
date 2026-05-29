@@ -93,6 +93,22 @@ def export_tramos(G, ranking: list) -> None:
     logger.info("Exportado tramos_candidatos.geojson (%d tramos)", len(gdf))
 
 
+def export_hospitales(salud_eng: gpd.GeoDataFrame) -> None:
+    """Exporta hospitales.geojson con los establecimientos resolutivos de la región piloto.
+
+    Columnas de salida: nombre (de NOMBRE), categoria (de CATEGORIA).
+    Confirmadas en cargar_puntos._SALUD_COLS = ["NOMBRE", config.COL_SALUD_CATEGORIA].
+    """
+    cols_rename = {"NOMBRE": "nombre", config.COL_SALUD_CATEGORIA: "categoria"}
+    available = {k: v for k, v in cols_rename.items() if k in salud_eng.columns}
+    gdf = salud_eng[list(available.keys()) + ["geometry"]].copy()
+    gdf = gdf.rename(columns=available)
+    gdf = gdf.to_crs(config.CRS_WGS84)
+    filename = "hospitales.geojson"
+    gdf.to_file(_geojson_path(filename), driver="GeoJSON")
+    logger.info("Exportado %s (%d establecimientos)", filename, len(gdf))
+
+
 # ---------------------------------------------------------------------------
 # SQLite
 # ---------------------------------------------------------------------------
