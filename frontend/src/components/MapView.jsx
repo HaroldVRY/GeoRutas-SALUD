@@ -13,9 +13,12 @@ const hospitalIcon = L.divIcon({
   popupAnchor: [0, -12],
 });
 
-// Rutas de acceso: color neutro-tenue, son contexto no la recomendación
-const estiloRuta = { color: "#5b7a99", weight: 1.2, opacity: 0.5 };
+// Rutas de acceso: gris-azulado tenue (contexto, no la recomendación)
+const ESTILO_RUTA    = { color: "#5b7a99", weight: 1.2, opacity: 0.5 };
+const ESTILO_TOP1    = { color: "#c0392b", weight: 7,   opacity: 0.92 };
+const ESTILO_OTROS   = { color: "#2980b9", weight: 2.5, opacity: 0.6 };
 
+// --- Leyenda ---
 function dot(color, borderColor) {
   const border = borderColor ? `border:2.5px solid ${borderColor};` : "";
   return `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${color};${border}box-shadow:0 1px 3px rgba(0,0,0,0.2);flex-shrink:0"></span>`;
@@ -29,7 +32,6 @@ function lineSymbol(color, heightPx, opacity) {
 function legendItem(symbol, text) {
   return `<div style="display:flex;align-items:center;gap:8px;margin:4px 0">${symbol}<span style="font-size:12px">${text}</span></div>`;
 }
-
 function buildLegendHTML(mostrarRutas, escenario) {
   let html = `<div style="font-weight:700;color:#0b5394;margin-bottom:7px;font-size:13px">Leyenda</div>`;
   html += legendItem(dot("#1a8a5a"), "CCPP con acceso (≤120 min)");
@@ -63,19 +65,26 @@ function MapLegend({ mostrarRutas, escenario }) {
   return null;
 }
 
-export default function MapView({ ccpp, tramos, hospitales, rutas, mostrarRutas, escenario, nuevosBrechaLluvias }) {
-  const estiloTramoFn = useMemo(() => {
-    if (!tramos?.features?.length) return () => ({ color: "#2980b9", weight: 2.5, opacity: 0.6 });
-    const top1Id = String(tramos.features[0].properties?.tramo_id);
-    return (feature) => {
-      const isTop1 = String(feature?.properties?.tramo_id) === top1Id;
-      return isTop1
-        ? { color: "#c0392b", weight: 7, opacity: 0.92 }
-        : { color: "#2980b9", weight: 2.5, opacity: 0.6 };
-    };
-  }, [tramos]);
+export default function MapView({ ccpp, tramos, hospitales, rutas, mostrarRutas, escenario, nuevosBrechaLluvias, top1TramoId }) {
+  // Dividir corredores: top 1 se renderiza en capa propia DESPUÉS de los demás
+  // → z-order garantizado: top 1 siempre encima de los otros corredores
+  const tramosOtros = useMemo(() => {
+    if (!tramos?.features) return null;
+    const features = tramos.features.filter(
+      (f) => String(f.properties?.tramo_id) !== top1TramoId
+    );
+    return features.length ? { ...tramos, features } : null;
+  }, [tramos, top1TramoId]);
 
-  // Estilo de CCPP: resalta en ámbar los que perdieron acceso al pasar a lluvias
+  const tramoTop1 = useMemo(() => {
+    if (!tramos?.features || !top1TramoId) return null;
+    const features = tramos.features.filter(
+      (f) => String(f.properties?.tramo_id) === top1TramoId
+    );
+    return features.length ? { ...tramos, features } : null;
+  }, [tramos, top1TramoId]);
+
+  // Estilo de CCPP: resalta con borde ámbar los que pierden acceso al pasar a lluvias
   const getCcppStyle = useMemo(() => {
     return (feature) => {
       const enBrecha = feature?.properties?.en_brecha;
@@ -108,17 +117,31 @@ export default function MapView({ ccpp, tramos, hospitales, rutas, mostrarRutas,
 
       <MapLegend mostrarRutas={mostrarRutas} escenario={escenario} />
 
-      {/* 1. Corredores de inversión — base del análisis */}
-      {tramos && (
+      {/* 1a. Corredores de inversión (todos menos top 1) — capa base */}
+      {tramosOtros && (
         <GeoJSON
-          key="tramos"
-          data={tramos}
-          style={estiloTramoFn}
+          key="tramos-otros"
+          data={tramosOtros}
+          style={() => ESTILO_OTROS}
           onEachFeature={(f, layer) => {
             const p = f.properties || {};
-            const esTop1 = tramos.features[0]?.properties?.tramo_id === p.tramo_id;
             layer.bindPopup(
-              `<b>${p.nombre ?? "Corredor"}</b>${esTop1 ? " <span style='color:#c0392b'>★ Top 1</span>" : ""}<br/>${p.longitud_km ?? "?"} km · score ${Math.round(p.score ?? 0).toLocaleString()}`
+              `<b>${p.nombre ?? "Corredor"}</b><br/>${p.longitud_km ?? "?"} km · score ${Math.round(p.score ?? 0).toLocaleString()}`
+            );
+          }}
+        />
+      )}
+
+      {/* 1b. Corredor top 1 — siempre encima de los demás corredores */}
+      {tramoTop1 && (
+        <GeoJSON
+          key="tramos-top1"
+          data={tramoTop1}
+          style={() => ESTILO_TOP1}
+          onEachFeature={(f, layer) => {
+            const p = f.properties || {};
+            layer.bindPopup(
+              `<b>${p.nombre ?? "Corredor"}</b> <span style='color:#c0392b'>★ Top 1</span><br/>${p.longitud_km ?? "?"} km · score ${Math.round(p.score ?? 0).toLocaleString()}`
             );
           }}
         />
@@ -129,7 +152,7 @@ export default function MapView({ ccpp, tramos, hospitales, rutas, mostrarRutas,
         <GeoJSON
           key={"rutas-" + escenario}
           data={rutas}
-          style={estiloRuta}
+          style={() => ESTILO_RUTA}
           onEachFeature={(f, layer) => {
             const p = f.properties || {};
             layer.bindPopup(

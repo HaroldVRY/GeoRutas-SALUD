@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import MapView from "./components/MapView.jsx";
 import ScenarioToggle from "./components/ScenarioToggle.jsx";
 import MetricsBar from "./components/MetricsBar.jsx";
@@ -7,41 +7,40 @@ import { api } from "./api.js";
 
 export default function App() {
   const [escenario, setEscenario] = useState("seco");
-  const [ccpp, setCcpp] = useState(null);
-  const [metricas, setMetricas] = useState(null);
+  // Ambos escenarios cargados al inicio: { seco: {ccpp, metricas, rutas}, lluvias: {...} }
+  // El toggle solo selecciona cuál mostrar — cero re-fetch, cero condición de carrera.
+  const [allData, setAllData] = useState(null);
   const [ranking, setRanking] = useState([]);
   const [tramos, setTramos] = useState(null);
   const [hospitales, setHospitales] = useState(null);
-  const [rutas, setRutas] = useState(null);
-  const [ccppSeco, setCcppSeco] = useState(null);
   const [mostrarRutas, setMostrarRutas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slowNetwork, setSlowNetwork] = useState(false);
   const [error, setError] = useState(null);
-  const initialLoaded = useRef(false);
 
-  // Carga inicial: todos los endpoints a la vez (cold-start de Render puede tardar ~50 s)
+  // Carga inicial: todos los endpoints de ambos escenarios en paralelo
   useEffect(() => {
     const slowTimer = setTimeout(() => setSlowNetwork(true), 3500);
-
     Promise.all([
       api.centrosPoblados("seco"),
       api.metricas("seco"),
+      api.rutas("seco"),
+      api.centrosPoblados("lluvias"),
+      api.metricas("lluvias"),
+      api.rutas("lluvias"),
       api.rankingTramos(20),
       api.geometriasTramos(),
       api.hospitales(),
-      api.rutas("seco"),
     ])
-      .then(([ccppData, metricasData, rankingData, tramosData, hospitalesData, rutasData]) => {
+      .then(([ccppSeco, metricasSeco, rutasSeco, ccppLluv, metricasLluv, rutasLluv, rankingData, tramosData, hospitalesData]) => {
         clearTimeout(slowTimer);
-        setCcpp(ccppData);
-        setCcppSeco(ccppData);
-        setMetricas(metricasData);
+        setAllData({
+          seco:    { ccpp: ccppSeco,    metricas: metricasSeco,    rutas: rutasSeco    },
+          lluvias: { ccpp: ccppLluv,    metricas: metricasLluv,    rutas: rutasLluv    },
+        });
         setRanking(rankingData);
         setTramos(tramosData);
         setHospitales(hospitalesData);
-        setRutas(rutasData);
-        initialLoaded.current = true;
         setLoading(false);
       })
       .catch((err) => {
@@ -51,39 +50,35 @@ export default function App() {
       });
   }, []);
 
-  // CCPP que tenían acceso en seco pero caen en brecha en lluvias.
-  // Clave compuesta nombre|lon|lat para evitar colisiones con nombres duplicados.
+  // Datos del escenario activo — derivados de allData, sin async
+  const ccpp     = allData?.[escenario]?.ccpp     ?? null;
+  const metricas = allData?.[escenario]?.metricas ?? null;
+  const rutas    = allData?.[escenario]?.rutas    ?? null;
+
+  // CCPP que pierden acceso al pasar a lluvias.
+  // Clave compuesta nombre|lon|lat evita colisiones entre CCPP homónimos.
+  // allData es estable (se asigna una sola vez) — solo recomputa al cambiar escenario.
   const nuevosBrechaLluvias = useMemo(() => {
-    if (escenario !== "lluvias" || !ccpp || !ccppSeco) return new Set();
+    if (escenario !== "lluvias") return new Set();
+    const secoData = allData?.seco?.ccpp;
+    const lluvData = allData?.lluvias?.ccpp;
+    if (!secoData || !lluvData) return new Set();
     const makeKey = (f) => {
       const [lon, lat] = f.geometry.coordinates;
       return `${f.properties.nombre}|${lon.toFixed(5)}|${lat.toFixed(5)}`;
     };
     const secoConAcceso = new Set(
-      ccppSeco.features.filter((f) => !f.properties.en_brecha).map(makeKey)
+      secoData.features.filter((f) => !f.properties.en_brecha).map(makeKey)
     );
     return new Set(
-      ccpp.features
+      lluvData.features
         .filter((f) => f.properties.en_brecha && secoConAcceso.has(makeKey(f)))
         .map(makeKey)
     );
-  }, [escenario, ccpp, ccppSeco]);
+  }, [escenario, allData]);
 
-  // Cambio de escenario: recarga solo ccpp + metricas (tramos no cambian)
-  useEffect(() => {
-    if (!initialLoaded.current) return;
-    Promise.all([
-      api.centrosPoblados(escenario),
-      api.metricas(escenario),
-      api.rutas(escenario),
-    ])
-      .then(([ccppData, metricasData, rutasData]) => {
-        setCcpp(ccppData);
-        setMetricas(metricasData);
-        setRutas(rutasData);
-      })
-      .catch(console.error);
-  }, [escenario]);
+  // ID del corredor top 1 según el ranking (fuente de verdad), no según orden del GeoJSON
+  const top1TramoId = String(ranking[0]?.tramo_id ?? "");
 
   if (loading) {
     return (
@@ -147,6 +142,7 @@ export default function App() {
           mostrarRutas={mostrarRutas}
           escenario={escenario}
           nuevosBrechaLluvias={nuevosBrechaLluvias}
+          top1TramoId={top1TramoId}
         />
       </main>
     </div>
