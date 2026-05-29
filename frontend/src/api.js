@@ -12,4 +12,5 @@ export const api = {
   rankingTramos: (limite = 20) => get(`/api/tramos/ranking?limite=${limite}`),
   geometriasTramos: () => get(`/api/tramos/geometrias`),
   hospitales: () => get(`/api/salud/hospitales`),
+  rutas: (escenario) => get(`/api/rutas?escenario=${escenario}`),
 };

@@ -67,3 +67,10 @@ body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #3c4655; }
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* Toggle de capa de rutas */
+.layer-toggle {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer; user-select: none;
+}
+.layer-toggle input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #e67e22; }

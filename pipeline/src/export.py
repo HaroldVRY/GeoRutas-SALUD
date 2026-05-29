@@ -93,6 +93,13 @@ def export_tramos(G, ranking: list) -> None:
     logger.info("Exportado tramos_candidatos.geojson (%d tramos)", len(gdf))
 
 
+def export_rutas(gdf: gpd.GeoDataFrame, escenario: str) -> None:
+    """Exporta rutas_{escenario}.geojson con trayectorias de red hospital→CCPP en brecha."""
+    filename = f"rutas_{escenario}.geojson"
+    gdf.to_file(_geojson_path(filename), driver="GeoJSON")
+    logger.info("Exportado %s (%d rutas)", filename, len(gdf))
+
+
 def export_hospitales(salud_eng: gpd.GeoDataFrame) -> None:
     """Exporta hospitales.geojson con los establecimientos resolutivos de la región piloto.
 

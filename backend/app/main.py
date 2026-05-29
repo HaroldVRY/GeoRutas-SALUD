@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import accesibilidad, tramos, salud
+from app.routers import accesibilidad, tramos, salud, rutas
 
 app = FastAPI(
     title="GeoRutas SALUD API",
@@ -20,6 +20,7 @@ app.add_middleware(
 app.include_router(accesibilidad.router, prefix="/api/accesibilidad", tags=["accesibilidad"])
 app.include_router(tramos.router, prefix="/api/tramos", tags=["tramos"])
 app.include_router(salud.router, prefix="/api/salud", tags=["salud"])
+app.include_router(rutas.router, prefix="/api/rutas", tags=["rutas"])
 
 
 @app.get("/api/health", tags=["health"])

@@ -25,7 +25,9 @@ function estiloCcpp(feature) {
   };
 }
 
-export default function MapView({ ccpp, tramos, hospitales, escenario }) {
+const estiloRuta = { color: "#e67e22", weight: 1.5, opacity: 0.75 };
+
+export default function MapView({ ccpp, tramos, hospitales, rutas, mostrarRutas, escenario }) {
   // Top 1 (primer feature, ordenado por score desc): rojo grueso prominente.
   // Resto: azul más fino pero visible.
   const estiloTramoFn = useMemo(() => {
@@ -50,7 +52,7 @@ export default function MapView({ ccpp, tramos, hospitales, escenario }) {
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* 1. Corredores (líneas) — base del análisis, debajo de los puntos */}
+      {/* 1. Corredores de inversión (líneas) — base del análisis */}
       {tramos && (
         <GeoJSON
           key="tramos"
@@ -66,7 +68,22 @@ export default function MapView({ ccpp, tramos, hospitales, escenario }) {
         />
       )}
 
-      {/* 2. Centros poblados (puntos) — rojo = en brecha, verde = con acceso */}
+      {/* 2. Rutas de acceso al hospital (naranja, ocultas por defecto) */}
+      {mostrarRutas && rutas && (
+        <GeoJSON
+          key={"rutas-" + escenario}
+          data={rutas}
+          style={estiloRuta}
+          onEachFeature={(f, layer) => {
+            const p = f.properties || {};
+            layer.bindPopup(
+              `<b>${p.ccpp ?? "CCPP"}</b><br/>${p.minutos ?? "?"} min → ${p.hospital_destino ?? "Hospital"}`
+            );
+          }}
+        />
+      )}
+
+      {/* 3. Centros poblados — rojo = en brecha, verde = con acceso */}
       {ccpp && (
         <GeoJSON
           key={escenario}
@@ -83,7 +100,7 @@ export default function MapView({ ccpp, tramos, hospitales, escenario }) {
         />
       )}
 
-      {/* 3. Hospitales resolutivos — encima de todo */}
+      {/* 4. Hospitales resolutivos — encima de todo */}
       {hospitales && (
         <GeoJSON
           key="hospitales"

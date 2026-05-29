@@ -52,6 +52,80 @@ def _vulnerabilidad(row: pd.Series) -> float:
     )
 
 
+def calcular_rutas(G, nodos_salud: list, salud_eng, df_acceso, col_brecha: str):
+    """Reconstruye la trayectoria de red (hospital → CCPP) para cada CCPP en brecha.
+
+    Usa Dijkstra con predecesores desde un super-origen virtual conectado a todos los
+    hospitales con coste 0. Tras reconstruir el camino de nodos, camino[0] es el nodo
+    del hospital más cercano para ese CCPP específico; se mapea a su nombre real vía
+    salud_eng["NOMBRE"] (no se asume el mismo hospital para todos).
+
+    Propiedades de cada feature: ccpp, minutos, hospital_destino.
+    Geometría simplificada (tolerancia 0.0001°, ≈11 m) para reducir tamaño del GeoJSON.
+    """
+    import geopandas as gpd
+    from shapely.geometry import LineString
+
+    # Mapa nodo_osm → nombre del hospital (del dato real de salud_eng)
+    salud_nombre_map: dict = {}
+    if "NOMBRE" in salud_eng.columns:
+        for _, r in salud_eng.iterrows():
+            salud_nombre_map[int(r["nodo_osm"])] = str(r["NOMBRE"])
+
+    super_origen = "__RUTAS__"
+    G_temp = G.copy()
+    for n in nodos_salud:
+        if n in G_temp:
+            G_temp.add_edge(super_origen, n, tiempo_min=0.0)
+
+    pred, _ = nx.dijkstra_predecessor_and_distance(G_temp, super_origen, weight="tiempo_min")
+    G_temp.remove_node(super_origen)
+
+    node_coords = {n: (d["x"], d["y"]) for n, d in G.nodes(data=True)}
+    ccpp_brecha = df_acceso[df_acceso[col_brecha]].copy()
+
+    rows = []
+    for _, row in ccpp_brecha.iterrows():
+        nodo_ccpp = row["nodo_osm"]
+
+        # Reconstruir camino siguiendo predecesores hacia atrás desde nodo_ccpp
+        # hasta llegar al super_origen. Resultado antes de invertir:
+        #   [nodo_ccpp, ..., hospital_nodo]   (super_origen excluido del path)
+        path: list = []
+        current = nodo_ccpp
+        while current != super_origen:
+            path.append(current)
+            preds = pred.get(current)
+            if not preds:
+                path = None
+                break
+            current = preds[0]
+
+        if path is None or len(path) < 2:
+            continue
+
+        path.reverse()  # ahora: [hospital_nodo, ..., nodo_ccpp]
+        hospital_nodo   = path[0]   # primer nodo real = hospital más cercano para este CCPP
+        hospital_nombre = salud_nombre_map.get(int(hospital_nodo), f"Nodo {hospital_nodo}")
+
+        coords = [node_coords[n] for n in path if n in node_coords]
+        if len(coords) < 2:
+            continue
+
+        geom = LineString(coords).simplify(0.0001, preserve_topology=False)
+
+        rows.append({
+            "ccpp":             str(row.get(config.COL_CCPP_NOMBRE, "")),
+            "minutos":          round(float(row["tiempo_min"]), 1),
+            "hospital_destino": hospital_nombre,
+            "geometry":         geom,
+        })
+
+    logger.info("Rutas reconstruidas: %d / %d CCPP en brecha (%s)",
+                len(rows), len(ccpp_brecha), col_brecha)
+    return gpd.GeoDataFrame(rows, crs=config.CRS_WGS84)
+
+
 def calcular_acceso_seco():
     """Calcula tiempo de acceso al hospital más cercano para cada CCPP (escenario seco).
 

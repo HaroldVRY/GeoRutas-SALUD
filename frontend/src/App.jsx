@@ -12,6 +12,8 @@ export default function App() {
   const [ranking, setRanking] = useState([]);
   const [tramos, setTramos] = useState(null);
   const [hospitales, setHospitales] = useState(null);
+  const [rutas, setRutas] = useState(null);
+  const [mostrarRutas, setMostrarRutas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slowNetwork, setSlowNetwork] = useState(false);
   const [error, setError] = useState(null);
@@ -27,14 +29,16 @@ export default function App() {
       api.rankingTramos(20),
       api.geometriasTramos(),
       api.hospitales(),
+      api.rutas("seco"),
     ])
-      .then(([ccppData, metricasData, rankingData, tramosData, hospitalesData]) => {
+      .then(([ccppData, metricasData, rankingData, tramosData, hospitalesData, rutasData]) => {
         clearTimeout(slowTimer);
         setCcpp(ccppData);
         setMetricas(metricasData);
         setRanking(rankingData);
         setTramos(tramosData);
         setHospitales(hospitalesData);
+        setRutas(rutasData);
         initialLoaded.current = true;
         setLoading(false);
       })
@@ -51,10 +55,12 @@ export default function App() {
     Promise.all([
       api.centrosPoblados(escenario),
       api.metricas(escenario),
+      api.rutas(escenario),
     ])
-      .then(([ccppData, metricasData]) => {
+      .then(([ccppData, metricasData, rutasData]) => {
         setCcpp(ccppData);
         setMetricas(metricasData);
+        setRutas(rutasData);
       })
       .catch(console.error);
   }, [escenario]);
@@ -97,12 +103,30 @@ export default function App() {
 
       <aside className="sidebar">
         <ScenarioToggle escenario={escenario} onChange={setEscenario} />
+        <div className="card">
+          <h3>Capas del mapa</h3>
+          <label className="layer-toggle">
+            <input
+              type="checkbox"
+              checked={mostrarRutas}
+              onChange={(e) => setMostrarRutas(e.target.checked)}
+            />
+            Rutas de acceso al hospital
+          </label>
+        </div>
         <MetricsBar metricas={metricas} />
         <TramoRanking ranking={ranking} />
       </aside>
 
       <main className="map">
-        <MapView ccpp={ccpp} tramos={tramos} hospitales={hospitales} escenario={escenario} />
+        <MapView
+          ccpp={ccpp}
+          tramos={tramos}
+          hospitales={hospitales}
+          rutas={rutas}
+          mostrarRutas={mostrarRutas}
+          escenario={escenario}
+        />
       </main>
     </div>
   );
