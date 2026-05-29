@@ -1,0 +1,46 @@
+:root {
+  --azul: #0b5394;
+  --azul2: #1c77c3;
+  --linea: #d9e2ec;
+  --fondo: #f7fafc;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #3c4655; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: 56px 1fr;
+  grid-template-areas: "top top" "side map";
+  height: 100vh;
+}
+.topbar {
+  grid-area: top; background: var(--azul); color: #fff;
+  display: flex; align-items: center; gap: 14px; padding: 0 18px;
+}
+.topbar h1 { font-size: 18px; margin: 0; }
+.tag { font-size: 12px; opacity: 0.85; }
+
+.sidebar { grid-area: side; background: var(--fondo); padding: 14px; overflow-y: auto; }
+.map { grid-area: map; }
+
+.card {
+  background: #fff; border: 1px solid var(--linea); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 12px;
+}
+.card h3 { margin: 0 0 8px; font-size: 14px; color: var(--azul); }
+
+.toggle { display: flex; gap: 8px; }
+.toggle button {
+  flex: 1; padding: 8px; border: 1px solid var(--linea); background: #fff;
+  border-radius: 6px; cursor: pointer; font-weight: 600;
+}
+.toggle button.active { background: var(--azul2); color: #fff; border-color: var(--azul2); }
+
+.metric { margin: 8px 0; }
+.metric span { font-size: 22px; font-weight: 700; color: var(--azul); display: block; }
+.metric small { color: #6b7686; }
+
+.ranking { margin: 0; padding-left: 18px; }
+.ranking li { margin: 6px 0; }
+.ranking small { display: block; color: #6b7686; }

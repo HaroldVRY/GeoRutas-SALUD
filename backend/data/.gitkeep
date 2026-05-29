@@ -1,0 +1,2 @@
+# El pipeline escribe aquí: acceso_seco.geojson, acceso_lluvias.geojson,
+# tramos_candidatos.geojson y app.db (SQLite). Estos SÍ se versionan (son ligeros).

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Datos fuente pesados (no versionar las capas crudas de GEO Perú)
+pipeline/data/raw/
+*.shp
+*.shx
+*.dbf
+*.prj
+*.gpkg
+
+# Node / frontend
+node_modules/
+frontend/dist/
+.env
+.env.local
+
+# Sistema
+.DS_Store
+Thumbs.db
+.vscode/

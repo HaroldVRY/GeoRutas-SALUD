@@ -1,0 +1,13 @@
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+# SPA: redirige todas las rutas a index.html
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Define VITE_API_URL en el panel de Netlify (Site settings > Environment variables)
+# con la URL del backend en Render, p. ej. https://georutas-salud-api.onrender.com
