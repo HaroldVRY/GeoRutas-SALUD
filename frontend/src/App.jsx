@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import MapView from "./components/MapView.jsx";
 import ScenarioToggle from "./components/ScenarioToggle.jsx";
 import MetricsBar from "./components/MetricsBar.jsx";
@@ -13,6 +13,7 @@ export default function App() {
   const [tramos, setTramos] = useState(null);
   const [hospitales, setHospitales] = useState(null);
   const [rutas, setRutas] = useState(null);
+  const [ccppSeco, setCcppSeco] = useState(null);
   const [mostrarRutas, setMostrarRutas] = useState(false);
   const [loading, setLoading] = useState(true);
   const [slowNetwork, setSlowNetwork] = useState(false);
@@ -34,6 +35,7 @@ export default function App() {
       .then(([ccppData, metricasData, rankingData, tramosData, hospitalesData, rutasData]) => {
         clearTimeout(slowTimer);
         setCcpp(ccppData);
+        setCcppSeco(ccppData);
         setMetricas(metricasData);
         setRanking(rankingData);
         setTramos(tramosData);
@@ -48,6 +50,24 @@ export default function App() {
         setLoading(false);
       });
   }, []);
+
+  // CCPP que tenían acceso en seco pero caen en brecha en lluvias.
+  // Clave compuesta nombre|lon|lat para evitar colisiones con nombres duplicados.
+  const nuevosBrechaLluvias = useMemo(() => {
+    if (escenario !== "lluvias" || !ccpp || !ccppSeco) return new Set();
+    const makeKey = (f) => {
+      const [lon, lat] = f.geometry.coordinates;
+      return `${f.properties.nombre}|${lon.toFixed(5)}|${lat.toFixed(5)}`;
+    };
+    const secoConAcceso = new Set(
+      ccppSeco.features.filter((f) => !f.properties.en_brecha).map(makeKey)
+    );
+    return new Set(
+      ccpp.features
+        .filter((f) => f.properties.en_brecha && secoConAcceso.has(makeKey(f)))
+        .map(makeKey)
+    );
+  }, [escenario, ccpp, ccppSeco]);
 
   // Cambio de escenario: recarga solo ccpp + metricas (tramos no cambian)
   useEffect(() => {
@@ -126,6 +146,7 @@ export default function App() {
           rutas={rutas}
           mostrarRutas={mostrarRutas}
           escenario={escenario}
+          nuevosBrechaLluvias={nuevosBrechaLluvias}
         />
       </main>
     </div>

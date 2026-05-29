@@ -68,6 +68,19 @@ body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #3c4655; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* Leyenda del mapa (Leaflet control) */
+.map-legend {
+  background: #fff;
+  padding: 10px 13px;
+  border-radius: 8px;
+  font: 13px "Segoe UI", Arial, sans-serif;
+  color: #3c4655;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  line-height: 1.5;
+  min-width: 195px;
+  pointer-events: auto;
+}
+
 /* Toggle de capa de rutas */
 .layer-toggle {
   display: flex; align-items: center; gap: 8px;
